@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rocket Relay — Banker Script Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000000;
+    --surface:#111111;
+    --surface-2:#161616;
+    --surface-3:#1b1b1b;
+    --border:rgba(255,255,255,.08);
+    --border-strong:rgba(255,255,255,.16);
+    --text:#ffffff;
+    --text-soft:#a0a0a0;
+    --text-faint:#707070;
+
+    --accent:#DE3341;
+    --accent-hi:#ff5c68;
+    --accent-soft-bg:rgba(222,51,65,.14);
+    --accent-soft-border:rgba(222,51,65,.36);
+
+    --amber:#e3a847;
+    --amber-soft-bg:rgba(227,168,71,.12);
+    --amber-soft-border:rgba(227,168,71,.32);
+
+    --teal:#4fd1c0;
+    --teal-soft-bg:rgba(79,209,192,.12);
+    --teal-soft-border:rgba(79,209,192,.32);
+
+    --blue:#6ea8fe;
+    --blue-soft-bg:rgba(110,168,254,.14);
+    --blue-soft-border:rgba(110,168,254,.34);
+
+    --green:#5fd99c;
+    --green-soft-bg:rgba(95,217,156,.12);
+    --green-soft-border:rgba(95,217,156,.30);
+
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+
+    --ease:cubic-bezier(.22,.7,.2,1);
+    --topbar-h:74px;
+    --footer-h:40px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  h1,h2,h3{margin:0;letter-spacing:-0.015em;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  :focus-visible{outline:2px solid var(--accent-hi);outline-offset:2px;border-radius:4px;}
+
+  #starfield{position:fixed;inset:0;z-index:0;display:block;pointer-events:none;}
+  .nebula{position:fixed;border-radius:50%;filter:blur(90px);opacity:.16;z-index:0;pointer-events:none;}
+  .nebula.n1{width:560px;height:560px;background:radial-gradient(circle, var(--accent), transparent 70%);top:-140px;left:-120px;animation:driftA 38s ease-in-out infinite alternate;}
+  .nebula.n2{width:520px;height:520px;background:radial-gradient(circle, var(--blue), transparent 70%);bottom:-160px;right:-100px;animation:driftB 44s ease-in-out infinite alternate;}
+  @keyframes driftA{from{transform:translate(0,0) scale(1);}to{transform:translate(70px,50px) scale(1.1);}}
+  @keyframes driftB{from{transform:translate(0,0) scale(1);}to{transform:translate(-60px,-35px) scale(1.06);}}
+
+  .warp-flash{position:fixed;inset:0;z-index:40;pointer-events:none;
+    background:radial-gradient(circle at 50% 50%, rgba(255,255,255,.16), rgba(222,51,65,.10) 35%, transparent 70%);
+    opacity:0;transition:opacity .35s ease;}
+  .warp-flash.show{opacity:1;}
+
+  /* ---------- Topbar (persistent HUD) ---------- */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;height:var(--topbar-h);z-index:50;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:18px;padding:0 24px;
+    background:rgba(9,9,9,.6);backdrop-filter:blur(16px);
+    border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex;align-items:center;gap:13px;}
+  .brand-badge{
+    width:36px;height:36px;border-radius:50%;background:var(--accent);flex:none;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 0 1px rgba(255,255,255,.06), 0 8px 20px rgba(222,51,65,.35);
+  }
+  .brand-badge svg{width:100%;height:100%;display:block;}
+  .brand-text{display:flex;align-items:baseline;gap:11px;}
+  .brand h1{font-size:1.32rem;font-weight:800;color:var(--text);}
+  .brand .tag{font-size:.7rem;color:var(--text-soft);text-transform:uppercase;letter-spacing:.09em;font-weight:600;}
+  .call-meta{display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:.82rem;color:var(--text-soft);}
+  .call-meta strong{color:var(--text);font-weight:600;}
+  .status-pill{
+    background:var(--accent-soft-bg);color:var(--accent-hi);font-size:.72rem;font-weight:700;
+    padding:5px 12px;border-radius:100px;letter-spacing:.05em;text-transform:uppercase;
+    border:1px solid var(--accent-soft-border);transition:background .3s,color .3s,border-color .3s;
+  }
+  .reset-btn{
+    background:transparent;border:1px solid var(--border-strong);color:var(--text-soft);
+    padding:7px 14px;border-radius:100px;font-size:.8rem;font-weight:600;
+    transition:border-color .2s var(--ease), color .2s var(--ease), background .2s var(--ease);
+  }
+  .reset-btn:hover{border-color:var(--text-soft);color:var(--text);background:var(--surface-2);}
+
+  /* ---------- Banana Phone dock ---------- */
+  .dock-toggle{
+    position:fixed;top:calc(var(--topbar-h) + 16px);right:22px;z-index:45;
+    background:var(--surface-2);border:1px solid var(--accent-soft-border);color:var(--accent-hi);
+    padding:9px 15px;border-radius:100px;font-size:.78rem;font-weight:700;
+    box-shadow:0 8px 20px rgba(0,0,0,.4);
+    transition:transform .2s var(--ease), background .2s var(--ease);
+  }
+  .dock-toggle:hover{transform:translateY(-2px);background:var(--surface-3);}
+  .dock-panel{
+    position:fixed;top:0;right:0;height:100%;width:340px;max-width:88vw;z-index:55;
+    background:rgba(15,14,13,.86);backdrop-filter:blur(18px);
+    border-left:1px solid var(--accent-soft-border);
+    transform:translateX(105%);transition:transform .45s var(--ease);
+    padding:calc(var(--topbar-h) + 20px) 20px 20px;overflow-y:auto;
+  }
+  .dock-panel.open{transform:translateX(0);}
+  .dock-close{
+    position:absolute;top:18px;right:18px;background:none;border:none;color:var(--text-soft);font-size:1.1rem;
+  }
+  .dock-panel h3{font-size:.95rem;font-weight:700;color:var(--accent-hi);margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+  .dock-sub{font-size:.78rem;color:var(--text-soft);font-style:italic;margin-bottom:16px;}
+  .opp-call{
+    border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 13px;margin-bottom:10px;
+    background:var(--surface-2);transition:border-color .2s var(--ease), background .2s var(--ease);
+  }
+  .opp-call:hover{border-color:var(--border-strong);background:var(--surface-3);}
+  .opp-call.is-current{border-color:var(--accent-soft-border);background:var(--accent-soft-bg);}
+  .opp-call-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:.82rem;}
+  .opp-call-top .name{font-weight:600;color:var(--text);}
+  .opp-call-top .id{color:var(--text-faint);font-size:.72rem;}
+  .opp-score-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .opp-score-bar{flex:1;height:5px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;}
+  .opp-score-fill{height:100%;width:0;background:var(--accent);border-radius:4px;transition:width 1s var(--ease);}
+  .opp-score-num{font-size:.72rem;font-weight:700;color:var(--accent-hi);min-width:26px;text-align:right;}
+  .opp-reason{font-size:.76rem;color:var(--text-soft);margin-top:6px;}
+  .script-tip{margin-top:14px;padding:12px 13px;border-radius:var(--radius-md);background:var(--surface-2);border:1px dashed var(--border-strong);font-size:.8rem;}
+  .script-tip .eyebrow{color:var(--accent-hi);font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
+  .script-tip p{margin:7px 0 0;color:var(--text-soft);}
+
+  /* ---------- Stage / Scenes ---------- */
+  #stage{position:fixed;inset:0;z-index:1;}
+  .scene{
+    position:absolute;inset:0;padding:calc(var(--topbar-h) + 26px) 24px calc(var(--footer-h) + 20px);
+    overflow-y:auto;opacity:0;pointer-events:none;
+    transform:scale(1.08);filter:blur(10px);
+    transition:opacity .65s var(--ease), transform .65s var(--ease), filter .65s var(--ease);
+  }
+  .scene.active{opacity:1;pointer-events:auto;transform:scale(1);filter:blur(0);}
+  .scene.exit{opacity:0;transform:scale(1.18);filter:blur(16px);transition:opacity .55s var(--ease), transform .55s var(--ease), filter .55s var(--ease);}
+
+  /* ---------- Scene 1: Galaxy ---------- */
+  .galaxy-scene{display:flex;flex-direction:column;align-items:center;min-height:100%;}
+  .galaxy-heading{text-align:center;margin-bottom:8px;}
+  .glass-heading{
+    display:inline-flex;flex-direction:column;align-items:center;gap:3px;
+    padding:14px 30px;border-radius:18px;margin:0;
+    background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(255,255,255,.04), 0 14px 34px rgba(0,0,0,.4);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  }
+  .glass-name{
+    font-size:1.5rem;font-weight:800;letter-spacing:-.01em;line-height:1.15;
+    background:linear-gradient(180deg, #ffffff 0%, #d8ecff 50%, #93b9e8 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 1px 18px rgba(160,200,255,.4);
+  }
+  .glass-sub{
+    font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.5));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .galaxy-heading p{font-size:.86rem;color:var(--text-soft);margin-top:12px;}
+  .galaxy-wrap{position:relative;width:min(680px,92vw);height:min(680px,92vw);margin:24px auto 8px;}
+  .galaxy-core{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:46px;height:46px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff, var(--blue) 45%, #1c3f66 100%);
+    box-shadow:0 0 30px 10px rgba(110,168,254,.35);
+    animation:pulseCore 4s ease-in-out infinite;
+  }
+  @keyframes pulseCore{0%,100%{box-shadow:0 0 26px 8px rgba(110,168,254,.3);}50%{box-shadow:0 0 38px 14px rgba(110,168,254,.5);}}
+  .core-label{position:absolute;top:calc(50% + 34px);left:50%;transform:translateX(-50%);font-size:.72rem;color:var(--text-soft);white-space:nowrap;}
+  .orbit-ring{position:absolute;top:50%;left:50%;border:1px dashed rgba(255,255,255,.07);border-radius:50%;}
+  .orbit{position:absolute;top:50%;left:50%;border-radius:50%;animation:spin linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes spinRev{to{transform:rotate(-360deg);}}
+  .planet-pos{position:absolute;top:50%;left:100%;transform:translate(-50%,-50%);}
+  .planet{
+    width:var(--psize);height:var(--psize);border-radius:50%;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;border:1px solid rgba(255,255,255,.16);position:relative;
+    transition:transform .25s var(--ease), box-shadow .25s var(--ease);
+  }
+  .planet:hover{transform:scale(1.14);}
+  .planet.past{
+    background:
+      radial-gradient(circle at 30% 60%, rgba(126,156,98,.55) 0 14%, transparent 15%),
+      radial-gradient(circle at 60% 33%, rgba(146,168,110,.45) 0 12%, transparent 13%),
+      radial-gradient(circle at 76% 68%, rgba(112,144,90,.4) 0 9%, transparent 10%),
+      radial-gradient(circle at 40% 82%, rgba(132,158,102,.3) 0 7%, transparent 8%),
+      radial-gradient(circle at 22% 65%, rgba(255,255,255,.10) 0 9%, transparent 10%),
+      radial-gradient(circle at 58% 38%, rgba(255,255,255,.07) 0 7%, transparent 8%),
+      radial-gradient(circle at 72% 70%, rgba(0,0,0,.30) 0 11%, transparent 12%),
+      radial-gradient(circle at 35% 25%, #6b88b8, #1e2f52 55%, #0a0f1c 100%);
+    box-shadow:0 0 14px rgba(110,168,254,.18), inset -8px -8px 16px rgba(0,0,0,.55), inset 5px 5px 10px rgba(255,255,255,.06);
+  }
+  .planet.today{
+    background:
+      radial-gradient(circle at 28% 62%, rgba(40,5,8,.55) 0 13%, transparent 14%),
+      radial-gradient(circle at 62% 38%, rgba(60,10,12,.45) 0 10%, transparent 11%),
+      radial-gradient(circle at 76% 70%, rgba(30,4,6,.4) 0 8%, transparent 9%),
+      radial-gradient(circle at 40% 85%, rgba(50,8,10,.3) 0 6%, transparent 7%),
+      radial-gradient(circle at 25% 68%, rgba(255,255,255,.14) 0 8%, transparent 9%),
+      radial-gradient(circle at 62% 35%, rgba(255,255,255,.10) 0 6%, transparent 7%),
+      radial-gradient(circle at 70% 72%, rgba(0,0,0,.25) 0 10%, transparent 11%),
+      radial-gradient(circle at 32% 28%, var(--accent-hi), var(--accent) 60%, #5c0e16 100%);
+    box-shadow:0 0 26px 6px rgba(222,51,65,.45), inset -8px -8px 16px rgba(0,0,0,.5), inset 5px 5px 10px rgba(255,255,255,.08);
+    animation:pulseToday 2.4s ease-in-out infinite;
+  }
+  @keyframes pulseToday{0%,100%{box-shadow:0 0 22px 5px rgba(222,51,65,.4);}50%{box-shadow:0 0 34px 10px rgba(222,51,65,.65);}}
+  .planet-label{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);font-size:.66rem;color:var(--text-soft);white-space:nowrap;text-align:center;}
+  .planet-label b{color:var(--text);display:block;font-size:.7rem;}
+
+  .planet-popover{
+    position:fixed;z-index:95;width:280px;background:var(--surface-2);border:1px solid var(--border-strong);
+    border-radius:var(--radius-md);padding:14px 15px;box-shadow:0 20px 50px rgba(0,0,0,.5);
+    opacity:0;transform:translateY(8px) scale(.96);pointer-events:none;
+    transition:opacity .2s var(--ease), transform .2s var(--ease);
+  }
+  .planet-popover.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+  .planet-popover .pop-client{font-size:.86rem;font-weight:700;color:var(--text);margin-bottom:4px;}
+  .planet-popover .pop-top{display:flex;justify-content:space-between;font-size:.74rem;color:var(--text-soft);margin-bottom:6px;}
+  .planet-popover .pop-summary{font-size:.84rem;margin-bottom:8px;}
+  .planet-popover .pop-close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--text-faint);font-size:1rem;}
+  .pop-open-btn{
+    width:100%;margin-top:12px;padding:9px 0;border-radius:100px;border:none;background:var(--accent);color:#fff;
+    font-weight:700;font-size:.8rem;transition:background .2s var(--ease), transform .15s var(--ease);
+  }
+  .pop-open-btn:hover{background:var(--accent-hi);transform:translateY(-1px);}
+  .doc-section{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);}
+  .doc-label{font-size:.64rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);font-weight:700;margin-bottom:6px;display:block;}
+  .doc-chip{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;padding:4px 9px;border-radius:100px;margin:0 5px 5px 0;border:1px solid transparent;font-weight:500;}
+  .doc-chip b{font-weight:700;}
+  .doc-chip.status-updated{background:var(--green-soft-bg);color:var(--green);border-color:var(--green-soft-border);}
+  .doc-chip.status-progress{background:var(--blue-soft-bg);color:var(--blue);border-color:var(--blue-soft-border);}
+  .doc-chip.status-pending{background:rgba(255,255,255,.05);color:var(--text-soft);border-color:var(--border);}
+
+  /* ---------- Scene 2: Transcript ---------- */
+  .transcript-scene{max-width:760px;margin:0 auto;}
+  .scene-hud{
+    display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px;flex-wrap:wrap;
+  }
+  .back-btn{
+    background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text-soft);
+    padding:7px 14px;border-radius:100px;font-size:.78rem;font-weight:600;margin-right:6px;
+    transition:border-color .2s var(--ease), color .2s var(--ease);
+  }
+  .back-btn:hover{border-color:var(--text-soft);color:var(--text);}
+  .transcript-hint{font-size:.8rem;color:var(--text-soft);margin-bottom:16px;}
+
+  .transcript{display:flex;flex-direction:column;gap:14px;}
+  .msg-row{display:flex;flex-direction:column;max-width:78%;width:fit-content;opacity:0;}
+  .msg-row.jordan{align-self:flex-end;align-items:flex-end;}
+  .msg-row.morgan{align-self:flex-start;align-items:flex-start;}
+  .msg-meta{font-size:.7rem;color:var(--text-faint);padding:0 4px;margin-bottom:4px;display:flex;gap:7px;}
+  .msg-meta .who{font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+  .msg-row.jordan .msg-meta .who{color:var(--accent-hi);}
+  .msg-row.morgan .msg-meta .who{color:var(--blue);}
+
+  .bubble{
+    padding:11px 15px;border-radius:18px;font-size:.94rem;line-height:1.45;
+    border:1px solid transparent;backdrop-filter:blur(6px);
+    animation:floatBob 6s ease-in-out infinite;
+  }
+  @keyframes floatBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
+  .msg-row.jordan .bubble{background:rgba(222,51,65,.13);color:#ffd9dd;border-color:var(--accent-soft-border);border-bottom-right-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 6px 18px rgba(222,51,65,.08);}
+  .msg-row.morgan .bubble{background:rgba(110,168,254,.13);color:#dce9ff;border-color:var(--blue-soft-border);border-bottom-left-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 6px 18px rgba(110,168,254,.08);}
+
+  .msg-row.has-issue .bubble{box-shadow:inset 0 0 0 1.5px var(--amber-soft-border);}
+  .msg-row.has-priority .bubble{box-shadow:inset 0 0 0 1.5px var(--teal-soft-border);}
+  .msg-row.is-marked.has-issue .bubble{box-shadow:inset 0 0 0 2px var(--amber);}
+  .msg-row.is-marked.has-priority .bubble{box-shadow:inset 0 0 0 2px var(--teal);}
+
+  .msg-tagbtns{display:flex;gap:7px;margin-top:7px;}
+  .tagbtn{
+    border:1px solid var(--border-strong);background:var(--surface-2);border-radius:100px;
+    font-size:.7rem;font-weight:600;padding:4px 11px;display:inline-flex;align-items:center;gap:4px;
+    color:var(--text-soft);transition:transform .15s var(--ease), background .15s var(--ease), color .15s var(--ease);
+  }
+  .tagbtn:hover{transform:translateY(-1px);}
+  .tagbtn.issue{border-color:var(--amber-soft-border);color:var(--amber);}
+  .tagbtn.issue.active{background:var(--amber);color:#1c1500;border-color:var(--amber);}
+  .tagbtn.priority{border-color:var(--teal-soft-border);color:var(--teal);}
+  .tagbtn.priority.active{background:var(--teal);color:#00211d;border-color:var(--teal);}
+
+  .annot{margin-top:8px;padding:11px 12px;border-radius:var(--radius-sm);font-size:.78rem;display:none;width:270px;max-width:80vw;}
+  .annot.open{display:block;animation:fadeUp .25s var(--ease) both;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .annot.issue{background:var(--amber-soft-bg);border:1px solid var(--amber-soft-border);color:#f4dba9;}
+  .annot.priority{background:var(--teal-soft-bg);border:1px solid var(--teal-soft-border);color:#bdf0e7;}
+  .annot .annot-label{font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:block;}
+  .for-banker{font-weight:500;text-transform:none;letter-spacing:0;opacity:.65;}
+  .annot.issue .annot-label{color:var(--amber);}
+  .annot.priority .annot-label{color:var(--teal);}
+  .annot .cite{font-size:.74rem;opacity:.9;}
+  .annot .next{margin-top:6px;padding-top:6px;border-top:1px dashed currentColor;opacity:.92;}
+  .annot .next b{font-weight:700;}
+  .annot .hist-note{margin-top:6px;padding-top:6px;border-top:1px dashed currentColor;opacity:.85;font-size:.72rem;}
+
+  .transcript-foot{
+    position:sticky;bottom:0;margin-top:20px;padding:14px 16px;
+    background:rgba(15,14,13,.78);backdrop-filter:blur(14px);
+    border:1px solid var(--border-strong);border-radius:var(--radius-md);
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  }
+  .count-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .count-badge{
+    display:flex;align-items:center;gap:7px;font-size:.78rem;font-weight:600;
+    padding:6px 12px;border-radius:100px;border:1px solid var(--border-strong);background:var(--surface-2);
+  }
+  .count-badge .dot{width:7px;height:7px;border-radius:50%;}
+  .count-badge.issues .dot{background:var(--amber);}
+  .count-badge.priorities .dot{background:var(--teal);}
+  .count-badge .num{color:var(--text);font-weight:800;}
+  .build-btn{
+    background:var(--accent);color:#fff;border:none;padding:11px 20px;border-radius:100px;
+    font-weight:700;font-size:.86rem;box-shadow:0 8px 20px rgba(222,51,65,.3);
+    transition:background .2s var(--ease), transform .15s var(--ease);
+  }
+  .build-btn:hover:not(:disabled){background:var(--accent-hi);transform:translateY(-1px);}
+  .build-btn:disabled{background:var(--surface-2);color:var(--text-faint);box-shadow:none;cursor:not-allowed;}
+
+  /* ---------- Scene 3: Asteroid ---------- */
+  .asteroid-scene{display:flex;flex-direction:column;align-items:center;min-height:100%;}
+  .asteroid-wrap{position:relative;width:min(560px,92vw);height:min(420px,60vw);margin:8px auto 0;display:flex;align-items:center;justify-content:center;}
+  .asteroid{
+    position:absolute;width:230px;height:200px;
+    clip-path:polygon(18% 4%, 46% 0%, 72% 8%, 92% 26%, 100% 52%, 90% 76%, 68% 96%, 40% 100%, 14% 88%, 0% 62%, 4% 32%);
+    background:
+      radial-gradient(circle at 24% 70%, rgba(0,0,0,.45) 0 7%, transparent 8%),
+      radial-gradient(circle at 62% 30%, rgba(0,0,0,.4) 0 9%, transparent 10%),
+      radial-gradient(circle at 78% 68%, rgba(0,0,0,.35) 0 6%, transparent 7%),
+      radial-gradient(circle at 38% 22%, rgba(255,255,255,.05) 0 5%, transparent 6%),
+      radial-gradient(circle at 32% 28%, #4a4137, #1c1712 65%, #0c0a07 100%);
+    box-shadow:inset -16px -16px 32px rgba(0,0,0,.6), inset 10px 10px 22px rgba(255,255,255,.04), 0 30px 60px rgba(0,0,0,.55);
+    transform:translateX(-220%) rotate(-30deg) scale(.7);
+    opacity:0;
+    transition:transform 1.1s var(--ease), opacity .7s ease;
+    overflow:hidden;
+  }
+  .asteroid-wrap.arrived .asteroid{
+    transform:translateX(0) rotate(0deg) scale(1);
+    opacity:1;
+    animation:tumbleAsteroid 18s linear infinite 1.1s;
+  }
+  @keyframes tumbleAsteroid{0%{transform:rotate(0deg) scale(1);}50%{transform:rotate(8deg) scale(1.015);}100%{transform:rotate(0deg) scale(1);}}
+  .asteroid::after{
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(120deg, transparent 30%, rgba(255,180,150,.18) 45%, transparent 60%);
+    animation:lightSweep 7s ease-in-out infinite;
+  }
+  @keyframes lightSweep{0%{transform:translateX(-60%);}100%{transform:translateX(60%);}}
+  .debris-orbit{position:absolute;top:50%;left:50%;border-radius:50%;animation:spin linear infinite;}
+  .debris{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5);position:absolute;top:50%;left:100%;transform:translate(-50%,-50%);}
+
+  .shed-chunk{
+    position:absolute;width:6px;height:6px;border-radius:30%;background:#2a241d;border:1px solid rgba(255,255,255,.08);
+    opacity:.95;pointer-events:none;
+    transition:transform 3.2s cubic-bezier(.3,0,.7,1), opacity 3.2s ease;
+  }
+
+  .script-card{
+    position:relative;z-index:2;width:min(420px,90vw);margin-top:14px;
+    background:rgba(17,15,13,.72);backdrop-filter:blur(16px);
+    border:1px solid var(--border-strong);border-radius:var(--radius-lg);
+    box-shadow:0 30px 70px rgba(0,0,0,.5);
+    padding:20px 22px;opacity:0;transform:translateY(14px) scale(.97);
+    transition:opacity .5s var(--ease), transform .5s var(--ease);
+  }
+  .script-card.show{opacity:1;transform:translateY(0) scale(1);}
+  .script-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .script-card-head h2{font-size:1rem;font-weight:700;}
+  .sms-pill{font-size:.7rem;font-weight:700;color:var(--blue);background:var(--blue-soft-bg);border:1px solid var(--blue-soft-border);padding:4px 10px;border-radius:100px;}
+  .channel-note{font-size:.74rem;color:var(--text-faint);font-style:italic;margin:0 0 12px;}
+  .gen-btn{
+    width:100%;padding:12px 0;border-radius:100px;border:none;background:var(--accent);color:#fff;
+    font-weight:700;font-size:.9rem;margin-top:2px;
+    transition:background .2s var(--ease), transform .15s var(--ease), box-shadow .2s var(--ease);
+    box-shadow:0 8px 20px rgba(222,51,65,.28);
+  }
+  .gen-btn:hover{background:var(--accent-hi);transform:translateY(-1px);}
+  .script-output{
+    margin-top:14px;padding:13px 14px;border-radius:var(--radius-md);background:rgba(255,255,255,.04);border:1px solid var(--border);
+    font-size:.84rem;white-space:pre-wrap;min-height:64px;color:var(--text);
+  }
+  .script-output .ph{color:var(--text-faint);font-style:italic;}
+  .script-actions{display:flex;gap:10px;margin-top:12px;}
+  .script-actions button{
+    flex:1;padding:9px 0;border-radius:100px;font-size:.82rem;font-weight:600;
+    transition:background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), transform .15s var(--ease);
+  }
+  .script-actions button:hover{transform:translateY(-1px);}
+  .approve-btn{background:var(--text);color:#0a0a0a;border:none;}
+  .approve-btn:hover{background:#e8e8e8;}
+  .change-btn{background:transparent;border:1px solid var(--border-strong);color:var(--text-soft);}
+  .change-btn:hover{border-color:var(--text-soft);color:var(--text);}
+  .toast{margin-top:11px;display:none;}
+  .toast.show{display:block;animation:fadeUp .25s var(--ease) both;}
+
+  /* ---------- Approve & Send: Earth impact overlay ---------- */
+  .impact-overlay{
+    position:fixed;inset:0;z-index:90;background:#000;overflow:hidden;
+    opacity:0;pointer-events:none;transition:opacity .5s ease;
+  }
+  .impact-overlay.show{opacity:1;pointer-events:auto;}
+  .impact-stage{position:absolute;inset:0;transform-origin:68% 50%;}
+  .earth{
+    position:absolute;top:50%;left:64%;width:130px;height:130px;border-radius:50%;
+    background:radial-gradient(circle at 32% 30%, #6cc2ff, #1d5fa8 55%, #08213f 100%);
+    box-shadow:0 0 70px 22px rgba(70,150,255,.32);
+    transform:translate(-50%,-50%) scale(.25);opacity:0;
+    transition:transform 1.5s var(--ease), opacity 1s ease;
+    overflow:hidden;
+  }
+  .impact-overlay.lit .earth{transform:translate(-50%,-50%) scale(1);opacity:1;}
+  .earth::before{
+    content:'';position:absolute;inset:0;border-radius:50%;
+    background:
+      radial-gradient(circle at 28% 62%, #2e7d4f 0 11%, transparent 12%),
+      radial-gradient(circle at 58% 35%, #3c8a52 0 10%, transparent 11%),
+      radial-gradient(circle at 70% 72%, #2f6b3c 0 8%, transparent 9%),
+      radial-gradient(circle at 40% 80%, #356b40 0 6%, transparent 7%);
+  }
+  .earth::after{
+    content:'';position:absolute;inset:-2px;border-radius:50%;
+    background:
+      radial-gradient(circle at 38% 22%, rgba(255,255,255,.55) 0 7%, transparent 8%),
+      radial-gradient(circle at 65% 55%, rgba(255,255,255,.4) 0 9%, transparent 10%),
+      radial-gradient(circle at 20% 68%, rgba(255,255,255,.35) 0 6%, transparent 7%),
+      linear-gradient(115deg, transparent 55%, rgba(0,0,0,.55) 80%);
+    animation:cloudDrift 26s linear infinite;
+  }
+  @keyframes cloudDrift{to{transform:rotate(360deg);}}
+  .travel-asteroid{
+    position:absolute;top:40%;left:-12%;width:30px;height:26px;
+    clip-path:polygon(20% 0%, 60% 5%, 90% 25%, 100% 60%, 75% 95%, 35% 100%, 5% 70%, 0% 35%);
+    background:radial-gradient(circle at 32% 28%, #756354, #221b14 75%);
+    opacity:0;transform:rotate(0deg);
+    transition:left 1.7s cubic-bezier(.4,0,.7,1), top 1.7s cubic-bezier(.4,0,.7,1), opacity .3s ease, transform 1.7s linear;
+  }
+  .impact-overlay.flying .travel-asteroid{opacity:1;left:64%;top:50%;transform:rotate(520deg);}
+  .impact-overlay.boom .travel-asteroid{opacity:0;transform:rotate(640deg) scale(.1);transition:opacity .2s ease, transform .2s ease;}
+  .impact-flash{
+    position:absolute;top:50%;left:64%;width:10px;height:10px;border-radius:50%;
+    background:radial-gradient(circle, #fff, var(--accent-hi) 40%, transparent 75%);
+    transform:translate(-50%,-50%) scale(0);opacity:0;
+  }
+  .impact-overlay.boom .impact-flash{animation:boom .55s ease-out forwards;}
+  @keyframes boom{
+    0%{transform:translate(-50%,-50%) scale(0);opacity:1;}
+    45%{transform:translate(-50%,-50%) scale(13);opacity:1;}
+    100%{transform:translate(-50%,-50%) scale(20);opacity:0;}
+  }
+  .boom-shard{position:absolute;pointer-events:none;z-index:92;}
+  .boom-ring{position:absolute;pointer-events:none;z-index:91;border-radius:50%;border:2px solid rgba(255,255,255,.75);}
+  @keyframes stageShake{
+    0%,100%{transform:translate(0,0);} 20%{transform:translate(7px,-4px);} 40%{transform:translate(-6px,5px);}
+    60%{transform:translate(5px,3px);} 80%{transform:translate(-4px,-3px);}
+  }
+  .impact-overlay.boom .impact-stage{animation:stageShake .4s ease;}
+  .impact-caption{
+    position:absolute;bottom:64px;left:0;right:0;display:flex;justify-content:center;
+    opacity:0;transition:opacity .5s ease;
+  }
+  .impact-overlay.caption .impact-caption{opacity:1;}
+
+  /* ---------- Reusable glass-pill text (same treatment as the galaxy title) ---------- */
+  .glass-pill{
+    display:inline-flex;align-items:center;padding:12px 26px;border-radius:100px;
+    background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(255,255,255,.04), 0 14px 34px rgba(0,0,0,.4);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  }
+  .glass-pill-text{
+    font-size:1rem;font-weight:800;letter-spacing:-.01em;white-space:nowrap;
+    background:linear-gradient(180deg, #ffffff 0%, #d8ecff 50%, #93b9e8 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 1px 18px rgba(160,200,255,.4);
+  }
+  .toast .glass-pill{padding:7px 16px;}
+  .toast .glass-pill-text{font-size:.78rem;font-weight:700;white-space:normal;}
+
+  /* ---------- Footer ---------- */
+  footer.disclaimer{
+    position:fixed;left:0;right:0;bottom:0;height:var(--footer-h);z-index:50;
+    display:flex;align-items:center;
+    font-size:.68rem;color:var(--text-faint);line-height:1.4;
+    background:rgba(9,9,9,.6);backdrop-filter:blur(14px);
+    border-top:1px solid var(--border);padding:0 24px;
+  }
+  footer.disclaimer strong{color:var(--text-soft);}
+
+  .ptcl{position:fixed;width:5px;height:5px;border-radius:50%;opacity:1;pointer-events:none;z-index:42;
+    transition:transform .75s cubic-bezier(.22,.8,.2,1), opacity .75s ease;}
+
+  @media (max-width:760px){
+    .topbar{padding:0 14px;flex-wrap:wrap;height:auto;min-height:var(--topbar-h);}
+    .meta-detail{display:none;}
+    .scene{padding:calc(var(--topbar-h) + 18px) 14px calc(var(--footer-h) + 16px);}
+    footer.disclaimer{font-size:.62rem;padding:0 14px;}
+    .galaxy-wrap{transform:scale(.62);transform-origin:center top;margin-bottom:-130px;}
+    .asteroid-wrap{transform:scale(.78);transform-origin:center top;margin-bottom:-50px;}
+  }
+  @media (max-width:420px){
+    .galaxy-wrap{transform:scale(.46);margin-bottom:-175px;}
+    .asteroid-wrap{transform:scale(.6);margin-bottom:-80px;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;animation:none !important;}
+    .msg-row{opacity:1;}
+  }
+</style>
+</head>
+<body>
+<canvas id="starfield" aria-hidden="true"></canvas>
+<div class="nebula n1" aria-hidden="true"></div>
+<div class="nebula n2" aria-hidden="true"></div>
+<div class="warp-flash" id="warpFlash" aria-hidden="true"></div>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="brand-badge" aria-hidden="true">
+      <svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="18" cy="18" r="15.5" fill="#fff"/>
+        <circle cx="18" cy="18" r="12.5" fill="#DE3341"/>
+      </svg>
+    </span>
+    <div class="brand-text">
+      <h1>Rocket Relay</h1>
+      <span class="tag">Banker Script Console</span>
+    </div>
+  </div>
+  <div class="call-meta">
+    <span class="meta-detail mono">Call <strong>#4471</strong></span>
+    <span class="meta-detail">Banker <strong>Jordan Alvarez</strong></span>
+    <span class="meta-detail">Client <strong>Morgan Lee</strong></span>
+    <span class="status-pill" id="statusPill">Browsing galaxy</span>
+    <button class="reset-btn" id="resetBtn" type="button">Reset demo</button>
+  </div>
+</div>
+
+<button class="dock-toggle" id="dockToggle" type="button">🍌 Opportunities</button>
+<aside class="dock-panel" id="dockPanel">
+  <button class="dock-close" id="dockClose" type="button" aria-label="Close">✕</button>
+  <h3>🍌 Opportunity feed</h3>
+  <p class="dock-sub">Sourced from <strong>Banana Phone</strong> — a hypothetical third-party call-scoring integration shown for concept purposes only.</p>
+
+  <div class="opp-call is-current">
+    <div class="opp-call-top"><span class="name">Morgan Lee</span><span class="id mono">#4471</span></div>
+    <div class="opp-score-row"><div class="opp-score-bar"><div class="opp-score-fill" data-w="92"></div></div><span class="opp-score-num">92</span></div>
+    <div class="opp-reason">Rate-sensitive refi, hard close deadline</div>
+  </div>
+  <div class="opp-call">
+    <div class="opp-call-top"><span class="name">Dana Whitfield</span><span class="id mono">#4438</span></div>
+    <div class="opp-score-row"><div class="opp-score-bar"><div class="opp-score-fill" data-w="87"></div></div><span class="opp-score-num">87</span></div>
+    <div class="opp-reason">Pre-qualified, comparing two lenders</div>
+  </div>
+  <div class="opp-call">
+    <div class="opp-call-top"><span class="name">Theo Brandt</span><span class="id mono">#4502</span></div>
+    <div class="opp-score-row"><div class="opp-score-bar"><div class="opp-score-fill" data-w="81"></div></div><span class="opp-score-num">81</span></div>
+    <div class="opp-reason">High DTI, alt-doc income review needed</div>
+  </div>
+  <div class="opp-call">
+    <div class="opp-call-top"><span class="name">Priya Nathan</span><span class="id mono">#4509</span></div>
+    <div class="opp-score-row"><div class="opp-score-bar"><div class="opp-score-fill" data-w="74"></div></div><span class="opp-score-num">74</span></div>
+    <div class="opp-reason">First-time buyer, FHA likely fit</div>
+  </div>
+
+  <div class="script-tip">
+    <span class="eyebrow">Banana Phone script tip</span>
+    <p>For Call #4471: lead with a written Loan Estimate before quoting a rate — Morgan's deadline pressure raises the odds of a verbal-only promise.</p>
+  </div>
+</aside>
+
+<main id="stage">
+
+  <!-- SCENE 1: GALAXY -->
+  <section class="scene galaxy-scene active" id="scene-galaxy">
+    <div class="galaxy-heading">
+      <h2 class="glass-heading">
+        <span class="glass-name">Morgan Lee</span>
+        <span class="glass-sub">Call Galaxy</span>
+      </h2>
+      <p>Hover any planet for its call summary and OurHouse documents, then open it to start the review.</p>
+    </div>
+    <div class="galaxy-wrap" id="galaxyWrap">
+      <div class="galaxy-core" aria-hidden="true"></div>
+      <div class="core-label">Morgan Lee</div>
+
+      <div class="orbit-ring" style="width:520px;height:520px;margin:-260px 0 0 -260px;"></div>
+      <div class="orbit-ring" style="width:400px;height:400px;margin:-200px 0 0 -200px;"></div>
+      <div class="orbit-ring" style="width:290px;height:290px;margin:-145px 0 0 -145px;"></div>
+      <div class="orbit-ring" style="width:180px;height:180px;margin:-90px 0 0 -90px;"></div>
+
+      <!-- #4398 -->
+      <div class="orbit" style="width:520px;height:520px;margin:-260px 0 0 -260px;animation-duration:70s;">
+        <div class="planet-pos">
+          <div class="planet past" style="--psize:46px;animation-duration:70s;" data-call='{"id":"#4398","when":"3 weeks ago","summary":"Asked about refinancing after rates dropped — general eligibility only.","docs":[{"name":"Pre-qual letter","status":"updated"},{"name":"Credit authorization","status":"pending"}]}'>
+          </div>
+        </div>
+      </div>
+
+      <!-- #4421 -->
+      <div class="orbit" style="width:400px;height:400px;margin:-200px 0 0 -200px;animation-duration:56s;animation-direction:reverse;">
+        <div class="planet-pos">
+          <div class="planet past" style="--psize:50px;animation-duration:56s;animation-direction:reverse;" data-call='{"id":"#4421","when":"2 weeks ago","summary":"First mentioned the June 30 lease deadline; asked about realistic timelines.","docs":[{"name":"Closing timeline worksheet","status":"updated"},{"name":"Lease agreement upload","status":"progress"}]}'>
+          </div>
+        </div>
+      </div>
+
+      <!-- #4455 -->
+      <div class="orbit" style="width:290px;height:290px;margin:-145px 0 0 -145px;animation-duration:42s;">
+        <div class="planet-pos">
+          <div class="planet past" style="--psize:54px;animation-duration:42s;" data-call='{"id":"#4455","when":"Last week","summary":"Compared fixed vs. ARM; leaned toward fixed for payment stability.","docs":[{"name":"Rate comparison sheet","status":"updated"},{"name":"CHARM booklet","status":"progress"}]}'>
+          </div>
+        </div>
+      </div>
+
+      <!-- #4471 today -->
+      <div class="orbit" style="width:180px;height:180px;margin:-90px 0 0 -90px;animation-duration:26s;animation-direction:reverse;">
+        <div class="planet-pos">
+          <div class="planet today" id="todayPlanet" style="--psize:72px;animation-duration:26s;" data-call='{"id":"#4471","when":"Today","summary":"Current call — opens the live transcript.","docs":[{"name":"Loan Estimate","status":"progress"},{"name":"Pay stubs","status":"progress"},{"name":"Tax return","status":"pending"},{"name":"Rate Lock Agreement","status":"progress"}]}'>
+            <span class="planet-label" style="top:calc(100% + 10px);"><b>Today</b>#4471</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCENE 2: TRANSCRIPT -->
+  <section class="scene transcript-scene" id="scene-transcript">
+    <div class="scene-hud">
+      <button class="back-btn" id="backToGalaxy" type="button">← Galaxy</button>
+      <span class="mono" id="transcriptCallLabel" style="font-size:.78rem;color:var(--text-soft);">Call #4471 · Today</span>
+    </div>
+    <div class="transcript-hint">Tap <span class="tagbtn issue" style="padding:3px 9px;">issue</span> or <span class="tagbtn priority" style="padding:3px 9px;">priority</span> under a message to mark it and pin a note.</div>
+    <div class="transcript" id="transcript"><!-- rendered by JS --></div>
+
+    <div class="transcript-foot">
+      <div class="count-row">
+        <span class="count-badge issues"><span class="dot"></span>Critical issues <span class="num" id="issueCount">0</span></span>
+        <span class="count-badge priorities"><span class="dot"></span>Client priorities <span class="num" id="priorityCount">0</span></span>
+      </div>
+      <button class="build-btn" id="buildScriptBtn" type="button" disabled>Build script →</button>
+    </div>
+  </section>
+
+  <!-- SCENE 3: ASTEROID -->
+  <section class="scene asteroid-scene" id="scene-asteroid">
+    <div class="scene-hud" style="width:min(420px,90vw);">
+      <button class="back-btn" id="backToTranscript" type="button">← Call</button>
+      <span class="mono" style="font-size:.78rem;color:var(--text-soft);">Script Builder</span>
+    </div>
+
+    <div class="asteroid-wrap">
+      <div class="debris-orbit" style="width:300px;height:300px;margin:-150px 0 0 -150px;animation-duration:14s;"><div class="debris"></div></div>
+      <div class="debris-orbit" style="width:340px;height:230px;margin:-115px 0 0 -170px;animation-duration:20s;animation-direction:reverse;"><div class="debris" style="background:rgba(255,140,140,.5);"></div></div>
+      <div class="debris-orbit" style="width:260px;height:340px;margin:-170px 0 0 -130px;animation-duration:24s;"><div class="debris"></div></div>
+      <div class="asteroid" aria-hidden="true"></div>
+    </div>
+
+    <div class="script-card" id="scriptCard">
+      <div class="script-card-head">
+        <h2>Script builder</h2>
+        <span class="sms-pill">SMS only</span>
+      </div>
+      <p class="channel-note">Texted from Jordan — a written, time-stamped record sent directly to Morgan.</p>
+      <button class="gen-btn" id="genBtn" type="button">Generate script</button>
+      <div class="script-output" id="scriptOutput"><span class="ph">Generating…</span></div>
+      <div class="script-actions">
+        <button class="approve-btn" id="approveBtn" type="button">Approve &amp; send</button>
+        <button class="change-btn" id="changeBtn" type="button">Make changes</button>
+      </div>
+      <div class="toast" id="toast"><span class="glass-pill"><span class="glass-pill-text" id="toastText"></span></span></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="disclaimer">
+  <span><strong>Rocket Relay</strong> is a concept mockup styled for Rocket Mortgage — not an official product, not connected to a live call vendor. <strong>Banana Phone</strong> and the call galaxy/<strong>OurHouse</strong> document statuses are hypothetical. Regulatory citations are illustrative, not legal advice.</span>
+</footer>
+
+<div id="planetPopover" class="planet-popover">
+  <button class="pop-close" id="popClose" type="button" aria-label="Close">✕</button>
+  <div class="pop-client">Morgan Lee</div>
+  <div class="pop-top"><span class="mono" id="popId"></span><span id="popWhen"></span></div>
+  <div class="pop-summary" id="popSummary"></div>
+  <div class="doc-section">
+    <span class="doc-label">OurHouse documents</span>
+    <div id="popDocs"></div>
+  </div>
+  <button class="pop-open-btn" id="popOpenBtn" type="button">Open call →</button>
+</div>
+
+<div class="impact-overlay" id="impactOverlay" aria-hidden="true">
+  <div class="impact-stage" id="impactStage">
+    <div class="earth" id="earthEl"></div>
+    <div class="travel-asteroid" id="travelAsteroid"></div>
+    <div class="impact-flash" id="impactFlash"></div>
+  </div>
+  <div class="impact-caption" id="impactCaption"><span class="glass-pill"><span class="glass-pill-text">Message sent — delivered to Morgan.</span></span></div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('starfield');
+  const ctx = canvas.getContext('2d');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.__reduceMotion = reduceMotion;
+
+  let w, h, cx, cy;
+  let stars = [];
+  const STAR_COUNT = reduceMotion ? 180 : 420;
+  const DEPTH = 640;
+  const FOCAL = 280;
+  let speed = 1.15;
+  window.__warpBoost = function(ms){
+    const base = 1.15;
+    speed = base * 5.5;
+    setTimeout(() => { speed = base; }, ms || 750);
+  };
+
+  let targetMX = 0, targetMY = 0, mX = 0, mY = 0;
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    cx = w / 2; cy = h / 2;
+  }
+  function makeStar(randomDepth){
+    return {
+      x:(Math.random() - 0.5) * w * 1.6,
+      y:(Math.random() - 0.5) * h * 1.6,
+      z: randomDepth ? Math.random() * DEPTH + 1 : DEPTH,
+      rocket: Math.random() < 0.05,
+      px:null, py:null
+    };
+  }
+  function init(){
+    resize();
+    stars = Array.from({length:STAR_COUNT}, () => makeStar(true));
+  }
+  function project(s, offX, offY){
+    const k = FOCAL / s.z;
+    return { x: cx + offX + s.x * k, y: cy + offY + s.y * k, k };
+  }
+  function frame(){
+    mX += (targetMX - mX) * 0.04;
+    mY += (targetMY - mY) * 0.04;
+    const offX = mX * 34;
+    const offY = mY * 24;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.40)';
+    ctx.fillRect(0, 0, w, h);
+
+    for(const s of stars){
+      if(!reduceMotion){
+        s.z -= speed;
+        if(s.z <= 1){
+          Object.assign(s, makeStar(false));
+          s.z = DEPTH;
+          continue;
+        }
+      }
+      const proj = project(s, offX, offY);
+      const t = 1 - s.z / DEPTH;
+      const radius = 0.55 + t * 2.1;
+      const alpha = 0.28 + t * 0.85;
+      const color = s.rocket ? `rgba(222,51,65,${alpha})` : `rgba(255,255,255,${alpha})`;
+
+      if(!reduceMotion && t > 0.5 && s.px !== null){
+        ctx.strokeStyle = color;
+        ctx.lineWidth = radius * 1.1;
+        ctx.beginPath();
+        ctx.moveTo(s.px, s.py);
+        ctx.lineTo(proj.x, proj.y);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(proj.x, proj.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      s.px = proj.x; s.py = proj.y;
+    }
+    if(!reduceMotion) requestAnimationFrame(frame);
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('mousemove', (e) => {
+    targetMX = (e.clientX / window.innerWidth - 0.5) * 2;
+    targetMY = (e.clientY / window.innerHeight - 0.5) * 2;
+  });
+  init();
+  if(reduceMotion){ frame(); } else { requestAnimationFrame(frame); }
+})();
+</script>
+
+<script>
+const transcript = [
+  { speaker:'jordan', name:'Jordan Alvarez', time:'00:02',
+    text:`Hi Morgan, this is Jordan with Rocket Mortgage — thanks for calling back about the refinance.` },
+  { speaker:'morgan', name:'Morgan Lee', time:'00:08',
+    text:`Hi Jordan. I really need to get this closed before my lease ends June 30th, so I'm hoping we can move fast.`,
+    priority:{ label:'Hard deadline, not a preference',
+      quote:`"I really need to get this closed before my lease ends June 30th."`,
+      next:`TRID sets fixed windows (3-day LE, 3-day CD) — plan backward from June 30.`,
+      history:`Same deadline flagged on Call #4421 (2 weeks ago).` } },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'00:15',
+    text:`Got it. Before we go further — are you refinancing your primary residence, or is this a second home or investment property?` },
+  { speaker:'morgan', name:'Morgan Lee', time:'00:21',
+    text:`Yes, just my primary home. I want the lowest monthly payment possible, even if the rate's a little higher.`,
+    priority:{ label:'Payment size over rate',
+      quote:`"I want the lowest monthly payment possible, even if the rate's a little higher."`,
+      next:`Compare points vs. lender credit and loan term — not just the rate.`,
+      history:`New this call — first time payment size has come up.` } },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'00:30',
+    text:`I can give you a sense of today's rate environment, but I can't lock anything yet — by law I have to send you a written Loan Estimate within 3 business days of your application, and that's what spells out the exact rate, fees, and terms.` },
+  { speaker:'morgan', name:'Morgan Lee', time:'00:41',
+    text:`Okay, that makes sense — go ahead and send that over.` },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'00:46',
+    text:`While I have you — there's actually a different program that pays me a bit better, and I think you'd qualify. Let's go with that one instead of the conventional loan.`,
+    issue:{ reg:'Loan Originator Compensation Rule — Reg Z §1026.36',
+      cite:`MLOs can't recommend loans based on their own compensation.`,
+      say:`Morgan, I want to revisit that last recommendation — let me show you the conventional option side by side with the other program so you can pick based on what's actually best for you, not what's easiest for me to offer.` } },
+  { speaker:'morgan', name:'Morgan Lee', time:'00:58',
+    text:`Sure, whatever you think is best.` },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'01:04',
+    text:`For income, I'll need your two most recent pay stubs and last year's tax return since you mentioned consulting work — everything that goes into qualifying you has to be documented.` },
+  { speaker:'morgan', name:'Morgan Lee', time:'01:14',
+    text:`Sure, I can send those over today.` },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'01:18',
+    text:`Before I pull your credit, I need your okay on file — do I have your permission to run a credit report today?` },
+  { speaker:'morgan', name:'Morgan Lee', time:'01:25',
+    text:`Yes, that's fine.` },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'01:28',
+    text:`And just to confirm for the file — will this stay your primary residence, or are there any plans to rent it out?` },
+  { speaker:'morgan', name:'Morgan Lee', time:'01:36',
+    text:`I'm honestly not sure yet — it depends on my job.` },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'01:40',
+    text:`That's fine — I'll note it as undecided for now and have our underwriter follow up before closing. I don't want to guess on that one.` },
+  { speaker:'morgan', name:'Morgan Lee', time:'01:50',
+    text:`Okay. Also — I'm really worried about the rate changing on me before we close. Can you guarantee it won't move?`,
+    priority:{ label:'Rate certainty / payment stability',
+      quote:`"I'm really worried about the rate changing on me before we close."`,
+      next:`Favor fixed-rate over ARM; get the lock in writing fast.`,
+      history:`Consistent with Call #4455 (last week) — leaned fixed for stability.` } },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'02:01',
+    text:`Don't worry about it — I'll just tell you it's locked, you don't need anything in writing for that.`,
+    issue:{ reg:'TILA / Reg Z — Written rate lock requirement',
+      cite:`Rate locks must be documented in writing, not promised verbally.`,
+      say:`I also want to follow up properly on the rate — I'm sending you a signed Rate Lock Agreement today with the exact rate, the lock period, and what happens if it needs to be extended, so it's official in writing.` } },
+  { speaker:'morgan', name:'Morgan Lee', time:'02:09',
+    text:`Okay, that's a relief.` },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'02:13',
+    text:`Last thing — I'll have my brother's title company handle the closing. He gives me a referral fee for sending business his way.`,
+    issue:{ reg:'RESPA Section 8 — Anti-kickback',
+      cite:`RESPA bans kickbacks for referring settlement service business.`,
+      say:`One more thing on the title company — you're free to choose your own provider. I can send you a couple of options, or you're welcome to pick your own; there's no obligation to use the one I mentioned.` } },
+  { speaker:'morgan', name:'Morgan Lee', time:'02:24',
+    text:`Sounds fine to me, I just want this done quickly.`,
+    priority:{ label:'Speed, reiterated',
+      quote:`"I just want this done quickly."`,
+      next:`Fastest legit path: send the LE today, don't skip disclosures.`,
+      history:`Echoes the June 30 deadline from Call #4421.` } },
+  { speaker:'jordan', name:'Jordan Alvarez', time:'02:31',
+    text:`I'll get your Loan Estimate out today, and you'll get the Closing Disclosure at least 3 business days before we sign anything — that's the fastest path that still keeps you fully informed at each step.` },
+  { speaker:'morgan', name:'Morgan Lee', time:'02:42',
+    text:`Okay, thanks Jordan — just keep me posted on timing since my lease is the big constraint.`,
+    priority:{ label:'Timeline, reiterated',
+      quote:`"My lease is the big constraint."`,
+      next:`Send a written timeline against June 30 — documents, not promises.`,
+      history:`Third mention of the June 30 deadline across calls.` } },
+];
+
+const transcriptEl = document.getElementById('transcript');
+const issueCountEl = document.getElementById('issueCount');
+const priorityCountEl = document.getElementById('priorityCount');
+const buildScriptBtn = document.getElementById('buildScriptBtn');
+const scriptOutput = document.getElementById('scriptOutput');
+const toast = document.getElementById('toast');
+const statusPill = document.getElementById('statusPill');
+const warpFlash = document.getElementById('warpFlash');
+
+let markedIssues = [];
+let markedPriorities = [];
+let transcriptRendered = false;
+
+/* ---------------- Transcript rendering & tagging ---------------- */
+function renderTranscript(){
+  transcriptEl.innerHTML = '';
+  transcript.forEach((line, idx) => {
+    const row = document.createElement('div');
+    row.className = `msg-row ${line.speaker} fade-up`;
+    row.style.opacity = '0';
+    row.style.animation = `fadeUp .5s var(--ease) both`;
+    row.style.animationDelay = `${Math.min(idx * 45, 600)}ms`;
+    if(line.issue) row.classList.add('has-issue');
+    if(line.priority) row.classList.add('has-priority');
+
+    let buttonsHtml = '';
+    if(line.issue) buttonsHtml += `<button class="tagbtn issue" data-idx="${idx}" data-kind="issue" type="button">Mark issue</button>`;
+    if(line.priority) buttonsHtml += `<button class="tagbtn priority" data-idx="${idx}" data-kind="priority" type="button">Mark priority</button>`;
+
+    let annotHtml = '';
+    if(line.issue){
+      annotHtml += `<div class="annot issue" id="annot-issue-${idx}">
+        <span class="annot-label">${line.issue.reg} <span class="for-banker">— Jordan only</span></span>
+        <span class="cite">${line.issue.cite}</span>
+        <div class="next"><b>Say to client:</b> &ldquo;${line.issue.say}&rdquo;</div>
+      </div>`;
+    }
+    if(line.priority){
+      annotHtml += `<div class="annot priority" id="annot-priority-${idx}">
+        <span class="annot-label">${line.priority.label}</span>
+        <span class="cite">${line.priority.quote}</span>
+        <div class="next"><b>Correlate:</b> ${line.priority.next}</div>
+        <div class="hist-note">📁 ${line.priority.history}</div>
+      </div>`;
+    }
+
+    row.innerHTML = `
+      <div class="msg-meta"><span class="who">${line.name}</span><span class="mono">${line.time}</span></div>
+      <div class="bubble" style="animation-delay:${(idx%4)*0.4}s">${line.text}</div>
+      ${buttonsHtml ? `<div class="msg-tagbtns">${buttonsHtml}</div>` : ''}
+      ${annotHtml}
+    `;
+    transcriptEl.appendChild(row);
+  });
+  transcriptEl.querySelectorAll('.tagbtn').forEach(btn => btn.addEventListener('click', () => toggleMark(btn)));
+  transcriptRendered = true;
+}
+
+function toggleMark(btn){
+  const idx = Number(btn.dataset.idx);
+  const kind = btn.dataset.kind;
+  const line = transcript[idx];
+  const row = btn.closest('.msg-row');
+  const annot = document.getElementById(`annot-${kind}-${idx}`);
+  const isActive = btn.classList.contains('active');
+
+  btn.classList.toggle('active', !isActive);
+  annot.classList.toggle('open', !isActive);
+  row.classList.toggle('is-marked', !isActive);
+
+  if(kind === 'issue'){
+    markedIssues = isActive ? markedIssues.filter(i => i.idx !== idx) : [...markedIssues, {idx, ...line.issue}];
+  } else {
+    markedPriorities = isActive ? markedPriorities.filter(p => p.idx !== idx) : [...markedPriorities, {idx, ...line.priority}];
+  }
+  issueCountEl.textContent = markedIssues.length;
+  priorityCountEl.textContent = markedPriorities.length;
+  buildScriptBtn.disabled = (markedIssues.length === 0 && markedPriorities.length === 0);
+}
+
+/* ---------------- Script generation (SMS only) ---------------- */
+function generateSmsScript(){
+  let draft = `Hi Morgan, this is Jordan with Rocket Mortgage following up on our call.\n\n`;
+  if(markedIssues.length){
+    draft += markedIssues.map(i => i.say).join('\n\n') + '\n';
+  }
+  if(markedPriorities.length){
+    draft += `\nKeeping your June 30 timeline front and center — I'll text you at each step (Loan Estimate, appraisal, underwriting, Closing Disclosure) so there are no surprises.\n`;
+  }
+  draft += `\nText me anytime with questions. – Jordan`;
+  scriptOutput.textContent = draft;
+}
+
+document.getElementById('genBtn').addEventListener('click', generateSmsScript);
+document.getElementById('approveBtn').addEventListener('click', () => {
+  if(!scriptOutput.textContent.trim() || scriptOutput.textContent.includes('Generating')){
+    showToast('Generate a script before approving.'); return;
+  }
+  playImpactSequence();
+});
+document.getElementById('changeBtn').addEventListener('click', () => showToast('Marked for edits (concept demo).'));
+function showToast(msg){
+  document.getElementById('toastText').textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove('show'), 3200);
+}
+
+/* ---------------- Approve & Send: Earth impact cinematic ---------------- */
+function spawnExplosion(cx, cy){
+  const overlay = document.getElementById('impactOverlay');
+  const colors = ['#ffffff','#ff5c68','#ffd23f','#4fd1c0','#6ea8fe','#DE3341','#ff9d4d'];
+
+  for(let i = 0; i < 56; i++){
+    const s = document.createElement('div');
+    s.className = 'boom-shard';
+    const size = 4 + Math.random()*7;
+    const diamond = Math.random() < 0.5;
+    const color = colors[Math.floor(Math.random()*colors.length)];
+    s.style.left = cx + 'px';
+    s.style.top = cy + 'px';
+    s.style.width = size + 'px';
+    s.style.height = size + 'px';
+    s.style.background = color;
+    s.style.boxShadow = `0 0 ${6 + Math.random()*8}px ${color}`;
+    s.style.borderRadius = diamond ? '2px' : '1px';
+    s.style.opacity = '1';
+    s.style.transform = `translate(-50%,-50%) rotate(${diamond ? 45 : 0}deg) scale(1)`;
+    s.style.transition = `transform ${0.6 + Math.random()*0.5}s cubic-bezier(.15,.8,.3,1), opacity ${0.7 + Math.random()*0.4}s ease`;
+    overlay.appendChild(s);
+
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 40 + Math.random() * 160;
+    requestAnimationFrame(() => {
+      s.style.transform = `translate(calc(-50% + ${Math.cos(ang)*dist}px), calc(-50% + ${Math.sin(ang)*dist}px)) rotate(${diamond ? 45 : 0}deg) scale(.15)`;
+      s.style.opacity = '0';
+    });
+    setTimeout(() => s.remove(), 1300);
+  }
+
+  for(let r = 0; r < 3; r++){
+    const ring = document.createElement('div');
+    ring.className = 'boom-ring';
+    ring.style.left = cx + 'px';
+    ring.style.top = cy + 'px';
+    ring.style.width = '10px';
+    ring.style.height = '10px';
+    ring.style.opacity = '.8';
+    ring.style.transform = 'translate(-50%,-50%) scale(1)';
+    ring.style.transition = `transform ${0.7 + r*0.15}s ease-out ${r*90}ms, opacity ${0.7 + r*0.15}s ease-out ${r*90}ms`;
+    overlay.appendChild(ring);
+    requestAnimationFrame(() => {
+      ring.style.transform = `translate(-50%,-50%) scale(${16 + r*6})`;
+      ring.style.opacity = '0';
+    });
+    setTimeout(() => ring.remove(), 1300);
+  }
+}
+
+function playImpactSequence(){
+  const overlay = document.getElementById('impactOverlay');
+  const stage = document.getElementById('impactStage');
+
+  if(window.__reduceMotion){
+    showToast('Draft approved — sent to Morgan.');
+    return;
+  }
+
+  overlay.classList.remove('lit','flying','boom','caption');
+  stage.style.transition = 'none';
+  stage.style.transform = 'scale(2.5) translateX(20%)';
+  overlay.classList.add('show');
+  window.__warpBoost(2400);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      stage.style.transition = 'transform 1.3s var(--ease)';
+      stage.style.transform = 'scale(1) translateX(0)';
+    });
+  });
+
+  setTimeout(() => overlay.classList.add('lit'), 450);
+  setTimeout(() => overlay.classList.add('flying'), 850);
+  setTimeout(() => {
+    overlay.classList.add('boom');
+    const flashRect = document.getElementById('impactFlash').getBoundingClientRect();
+    spawnExplosion(flashRect.left + flashRect.width/2, flashRect.top + flashRect.height/2);
+  }, 850 + 1700 - 150);
+  setTimeout(() => overlay.classList.add('caption'), 850 + 1700 + 200);
+  setTimeout(() => {
+    overlay.classList.remove('show');
+    showToast('Draft approved — sent to Morgan.');
+  }, 850 + 1700 + 1900);
+}
+
+
+/* ---------------- Galaxy: planet popovers ---------------- */
+const popover = document.getElementById('planetPopover');
+let popoverActiveCall = null;
+let popoverHideTimer = null;
+
+function showPlanetPopover(p){
+  const data = JSON.parse(p.dataset.call);
+  popoverActiveCall = data;
+  document.getElementById('popId').textContent = data.id;
+  document.getElementById('popWhen').textContent = data.when;
+  document.getElementById('popSummary').textContent = data.summary;
+  document.getElementById('popDocs').innerHTML = data.docs.map(d =>
+    `<span class="doc-chip status-${d.status}">${d.name} <b>${d.status === 'updated' ? 'Updated' : d.status === 'progress' ? 'In progress' : 'Pending'}</b></span>`
+  ).join('');
+
+  const margin = 14;
+  const popRect = popover.getBoundingClientRect();
+  const popW = popRect.width || 280;
+  const popH = popRect.height || 260;
+  const rect = p.getBoundingClientRect();
+
+  // Horizontal: prefer right of the planet, fall back to its left, then clamp on-screen.
+  let left = rect.right + margin;
+  if(left + popW > window.innerWidth - 10) left = rect.left - popW - margin;
+  left = Math.max(10, Math.min(left, window.innerWidth - popW - 10));
+
+  // Vertical: align with the planet, but flip fully ABOVE it if it would run off the bottom
+  // (this is what keeps the "Open call" button reachable for planets near the bottom of the screen).
+  let top = rect.top - 10;
+  if(top + popH > window.innerHeight - 10){
+    top = rect.top - popH - margin;
+  }
+  top = Math.max(10, Math.min(top, window.innerHeight - popH - 10));
+
+  popover.style.left = left + 'px';
+  popover.style.top = top + 'px';
+  popover.classList.add('show');
+}
+function scheduleHidePopover(){
+  clearTimeout(popoverHideTimer);
+  popoverHideTimer = setTimeout(() => popover.classList.remove('show'), 240);
+}
+
+document.querySelectorAll('.planet').forEach(p => {
+  p.addEventListener('mouseenter', () => { clearTimeout(popoverHideTimer); showPlanetPopover(p); });
+  p.addEventListener('mouseleave', scheduleHidePopover);
+  p.addEventListener('click', (e) => { showPlanetPopover(p); e.stopPropagation(); });
+});
+popover.addEventListener('mouseenter', () => clearTimeout(popoverHideTimer));
+popover.addEventListener('mouseleave', scheduleHidePopover);
+
+document.getElementById('popClose').addEventListener('click', () => popover.classList.remove('show'));
+document.getElementById('popOpenBtn').addEventListener('click', () => {
+  if(!popoverActiveCall) return;
+  document.getElementById('transcriptCallLabel').textContent = `Call ${popoverActiveCall.id} · ${popoverActiveCall.when}`;
+  popover.classList.remove('show');
+  goToScene('transcript');
+});
+document.addEventListener('click', (e) => {
+  if(!popover.contains(e.target) && !e.target.closest('.planet')) popover.classList.remove('show');
+});
+
+/* ---------------- Banana Phone dock ---------------- */
+const dockPanel = document.getElementById('dockPanel');
+document.getElementById('dockToggle').addEventListener('click', () => dockPanel.classList.add('open'));
+document.getElementById('dockClose').addEventListener('click', () => dockPanel.classList.remove('open'));
+function animateScoreBars(){
+  document.querySelectorAll('.opp-score-fill').forEach(el => {
+    requestAnimationFrame(() => { el.style.width = el.dataset.w + '%'; });
+  });
+}
+animateScoreBars();
+
+/* ---------------- Particle bursts ---------------- */
+function spawnParticles(targetEl, mode){
+  const rect = targetEl.getBoundingClientRect();
+  const cx0 = rect.left + rect.width/2, cy0 = rect.top + rect.height/2;
+  const count = 40;
+  for(let i=0;i<count;i++){
+    const p = document.createElement('span');
+    p.className = 'ptcl';
+    const ang = Math.random()*Math.PI*2;
+    const dist = 100 + Math.random()*240;
+    const ex = cx0 + Math.cos(ang)*dist;
+    const ey = cy0 + Math.sin(ang)*dist;
+    p.style.background = Math.random() < 0.45 ? '#DE3341' : '#ffffff';
+
+    if(mode === 'in'){
+      p.style.left = ex+'px'; p.style.top = ey+'px';
+      document.body.appendChild(p);
+      requestAnimationFrame(() => {
+        p.style.transform = `translate(${cx0-ex}px, ${cy0-ey}px) scale(.2)`;
+        p.style.opacity = '0';
+      });
+    } else {
+      p.style.left = cx0+'px'; p.style.top = cy0+'px';
+      document.body.appendChild(p);
+      requestAnimationFrame(() => {
+        p.style.transform = `translate(${ex-cx0}px, ${ey-cy0}px) scale(.2)`;
+        p.style.opacity = '0';
+      });
+    }
+    setTimeout(() => p.remove(), 800);
+  }
+}
+
+/* ---------------- Asteroid: shedding debris ---------------- */
+let shedInterval = null;
+function spawnShedChunk(){
+  const wrap = document.querySelector('.asteroid-wrap');
+  const rock = document.querySelector('.asteroid');
+  if(!wrap || !rock) return;
+  const rect = rock.getBoundingClientRect();
+  const wrapRect = wrap.getBoundingClientRect();
+  const cx = rect.left + rect.width/2 - wrapRect.left;
+  const cy = rect.top + rect.height/2 - wrapRect.top;
+  const ang = Math.random() * Math.PI * 2;
+  const rx = (rect.width/2) * (0.85 + Math.random()*0.15);
+  const ry = (rect.height/2) * (0.85 + Math.random()*0.15);
+  const sx = cx + Math.cos(ang) * rx;
+  const sy = cy + Math.sin(ang) * ry;
+
+  const chunk = document.createElement('div');
+  chunk.className = 'shed-chunk';
+  chunk.style.left = sx + 'px';
+  chunk.style.top = sy + 'px';
+  chunk.style.transform = 'translate(0,0) rotate(0deg) scale(1)';
+  wrap.appendChild(chunk);
+
+  requestAnimationFrame(() => {
+    const dx = Math.cos(ang) * (30 + Math.random()*40);
+    const dy = 60 + Math.random()*90;
+    chunk.style.transform = `translate(${dx}px, ${dy}px) rotate(${Math.random()*240-120}deg) scale(.3)`;
+    chunk.style.opacity = '0';
+  });
+  setTimeout(() => chunk.remove(), 3300);
+}
+
+/* ---------------- Scene navigation ---------------- */
+let currentScene = 'galaxy';
+const statusText = { galaxy:'Browsing galaxy', transcript:'Reviewing call', asteroid:'Building script' };
+
+const sceneTransitions = {
+  'galaxy->transcript':   { exitScale:1.36, exitY:-100, enterScale:0.86, enterY: 100 },
+  'transcript->galaxy':   { exitScale:1.34, exitY: 100, enterScale:0.86, enterY:-100 },
+  'transcript->asteroid': { exitScale:1.34, exitY: 100, enterScale:0.86, enterY:-100 },
+  'asteroid->transcript': { exitScale:1.34, exitY:-100, enterScale:0.86, enterY: 100 },
+};
+
+function goToScene(target){
+  if(currentScene === target) return;
+  const fromEl = document.getElementById('scene-' + currentScene);
+  const toEl = document.getElementById('scene-' + target);
+  const cfg = sceneTransitions[currentScene + '->' + target] || { exitScale:1.2, exitY:0, enterScale:0.9, enterY:0 };
+
+  if(currentScene === 'asteroid' && shedInterval){ clearInterval(shedInterval); shedInterval = null; }
+
+  window.__warpBoost(800);
+  warpFlash.classList.add('show');
+  setTimeout(() => warpFlash.classList.remove('show'), 380);
+
+  fromEl.style.transition = 'opacity .6s var(--ease), transform .6s var(--ease), filter .6s var(--ease)';
+  fromEl.style.opacity = '0';
+  fromEl.style.transform = `scale(${cfg.exitScale}) translateY(${cfg.exitY}px)`;
+  fromEl.style.filter = 'blur(20px)';
+  fromEl.classList.remove('active');
+
+  toEl.style.transition = 'none';
+  toEl.style.opacity = '0';
+  toEl.style.transform = `scale(${cfg.enterScale}) translateY(${cfg.enterY}px)`;
+  toEl.style.filter = 'blur(16px)';
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      toEl.style.transition = 'opacity .75s var(--ease), transform .75s var(--ease), filter .75s var(--ease)';
+      toEl.style.opacity = '1';
+      toEl.style.transform = 'scale(1) translateY(0)';
+      toEl.style.filter = 'blur(0)';
+      toEl.classList.add('active');
+
+      if(target === 'transcript' && !transcriptRendered) renderTranscript();
+
+      const wrap = document.querySelector('.asteroid-wrap');
+      if(target === 'asteroid'){
+        const card = document.getElementById('scriptCard');
+        wrap.classList.add('arrived');
+        setTimeout(() => spawnParticles(document.querySelector('.asteroid'), 'in'), 500);
+        setTimeout(() => {
+          card.classList.add('show');
+          generateSmsScript();
+          spawnShedChunk();
+          shedInterval = setInterval(spawnShedChunk, 1100);
+        }, 1150);
+      } else if(wrap) {
+        wrap.classList.remove('arrived');
+      }
+    });
+  });
+
+  setTimeout(() => {
+    fromEl.style.transition = '';
+    fromEl.style.transform = '';
+    fromEl.style.filter = '';
+    fromEl.style.opacity = '';
+  }, 700);
+
+  currentScene = target;
+  statusPill.textContent = statusText[target];
+}
+
+document.getElementById('backToGalaxy').addEventListener('click', () => goToScene('galaxy'));
+document.getElementById('backToTranscript').addEventListener('click', () => goToScene('transcript'));
+buildScriptBtn.addEventListener('click', () => { if(!buildScriptBtn.disabled) goToScene('asteroid'); });
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  markedIssues = []; markedPriorities = [];
+  issueCountEl.textContent = '0'; priorityCountEl.textContent = '0';
+  buildScriptBtn.disabled = true;
+  scriptOutput.innerHTML = `<span class="ph">Generating…</span>`;
+  document.getElementById('scriptCard').classList.remove('show');
+  document.getElementById('impactOverlay').classList.remove('show','lit','flying','boom','caption');
+  if(shedInterval){ clearInterval(shedInterval); shedInterval = null; }
+  const wrap = document.querySelector('.asteroid-wrap');
+  if(wrap) wrap.classList.remove('arrived');
+  toast.classList.remove('show');
+  transcriptRendered = false;
+  renderTranscript();
+  if(currentScene !== 'galaxy') goToScene('galaxy');
+});
+
+</script>
+</body>
+</html>
